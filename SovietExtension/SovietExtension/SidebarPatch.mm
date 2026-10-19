@@ -613,8 +613,9 @@ struct HashResult {
         input->buildVersion,
         input->architecture,
     };
-    if (!YMSidebarPatchIdentityMatches(
-            YMSidebarPatchWeChat411TargetProfile, identity)) {
+    const YMSidebarPatchTargetProfile *profile =
+        YMSidebarPatchTargetForIdentity(identity);
+    if (profile == nullptr) {
         return fail(SidebarPatchIntegrityFailureIdentityMismatch);
     }
 
@@ -638,7 +639,7 @@ struct HashResult {
         return fail(SidebarPatchIntegrityFailureUnreadableRange);
     }
     if (!YMNavigationSidebarVerifyMachOUUID(
-            *YMSidebarPatchWeChat411TargetProfile.sidebarProfile,
+            *profile->sidebarProfile,
             machHeader.data(),
             machHeader.size())) {
         return fail(SidebarPatchIntegrityFailureUUIDMismatch);
@@ -649,7 +650,7 @@ struct HashResult {
         return fail(SidebarPatchIntegrityFailureHash);
     }
     const auto targets = YMNavigationSidebarProfileTargets(
-        *YMSidebarPatchWeChat411TargetProfile.sidebarProfile);
+        *profile->sidebarProfile);
     for (std::size_t index = 0; index < targets.size(); ++index) {
         const auto &guard = targets[index];
         uintptr_t runtimeAddress = 0;
@@ -685,7 +686,7 @@ struct HashResult {
         return fail(fileHash.failure);
     }
     if (!YMSidebarPatchDigestMatches(
-            YMSidebarPatchWeChat411TargetProfile,
+            *profile,
             fileHash.digest.data(),
             fileHash.digest.size())) {
         return fail(SidebarPatchIntegrityFailureSHAMismatch);

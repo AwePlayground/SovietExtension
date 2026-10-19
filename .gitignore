@@ -3,5 +3,6 @@ Test/
 /frida/
 /tests/*
 !/tests/check_wechat_270135_profile.py
+!/tests/check_sidebar_270135_profile.py
 __pycache__/
 *.pyc

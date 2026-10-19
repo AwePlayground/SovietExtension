@@ -53,8 +53,49 @@ static NSString *const YMNavigationSidebarSecondaryOrderKey = @"secondaryOrder";
 static NSString *const YMNavigationSidebarExposeSecondaryKey =
     @"exposeSecondaryEntries";
 
-static const YMNavigationSidebarBuildProfile &YMNavigationSidebarProfile =
-    YMNavigationSidebarWeChat411BuildProfile;
+static const YMNavigationSidebarBuildProfile &YMNavigationSidebarProfile = []()
+    -> const YMNavigationSidebarBuildProfile & {
+    NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"];
+    return [build isEqualToString:@"270135"]
+               ? YMNavigationSidebarWeChat415BuildProfile
+               : YMNavigationSidebarWeChat411BuildProfile;
+}();
+
+static bool YMNavigationSidebarUses270135Layout() noexcept {
+    return &YMNavigationSidebarProfile ==
+           &YMNavigationSidebarWeChat415BuildProfile;
+}
+
+static uintptr_t YMNavigationSidebarPrimaryControllerOffset() noexcept {
+    return YMNavigationSidebarUses270135Layout()
+               ? 0x180
+               : kYMNavigationSidebarPrimaryControllerOffset;
+}
+
+static uintptr_t YMNavigationSidebarSecondaryControllerOffset() noexcept {
+    return YMNavigationSidebarUses270135Layout()
+               ? 0x190
+               : kYMNavigationSidebarSecondaryControllerOffset;
+}
+
+static uintptr_t YMNavigationSidebarOverflowOffset() noexcept {
+    return YMNavigationSidebarUses270135Layout()
+               ? 0x210
+               : kYMNavigationSidebarOverflowOffset;
+}
+
+static uintptr_t YMNavigationSidebarLayoutModeOffset() noexcept {
+    return YMNavigationSidebarUses270135Layout()
+               ? 0x208
+               : kYMNavigationSidebarLayoutModeOffset;
+}
+
+static uintptr_t YMNavigationSidebarAvailabilityOffset(int type) noexcept {
+    const uintptr_t offset = YMNavigationSidebarAvailabilityFlagOffset(type);
+    return offset != 0 && YMNavigationSidebarUses270135Layout()
+               ? offset - 0x8
+               : offset;
+}
 
 using YMNavigationSidebarOwnerFunction = void (*)(void *);
 using YMNavigationSidebarMainWindowDestructor = void *(*)(void *);
@@ -133,6 +174,8 @@ static YMNavigationSidebarLookupItem YMNavigationSidebarLookupNativeItem =
     nullptr;
 static YMNavigationSidebarPrimarySelector YMNavigationSidebarSelectPrimary =
     nullptr;
+static YMNavigationSidebarPrimarySelector
+    YMNavigationSidebarNativeSelectPrimary415 = nullptr;
 static YMNavigationSidebarSelectedPrimaryGetter
     YMNavigationSidebarGetSelectedPrimary = nullptr;
 static YMNavigationSidebarOverflowClear YMNavigationSidebarClearOverflow =
@@ -952,7 +995,7 @@ YMNavigationSidebarPreparePrimaryVisibility(
     plan.owner = owner;
     if (!YMNavigationSidebarLoadPointerMember(
             owner,
-            kYMNavigationSidebarPrimaryControllerOffset,
+            YMNavigationSidebarPrimaryControllerOffset(),
             plan.controller)) {
         return YMNavigationSidebarPrimaryPrepareFailure::unavailable;
     }
@@ -1052,7 +1095,7 @@ static void YMNavigationSidebarApplyDiscoverEntryVisibility(
 
     void *controller = nullptr;
     if (!YMNavigationSidebarLoadPointerMember(
-            owner, kYMNavigationSidebarPrimaryControllerOffset, controller) ||
+            owner, YMNavigationSidebarPrimaryControllerOffset(), controller) ||
         controller == nullptr) {
         return;
     }
@@ -1201,7 +1244,7 @@ static bool YMNavigationSidebarApplySecondaryProjection(
     void *controller = nullptr;
     if (!YMNavigationSidebarLoadPointerMember(
             owner,
-            kYMNavigationSidebarSecondaryControllerOffset,
+            YMNavigationSidebarSecondaryControllerOffset(),
             controller)) {
         return false;
     }
@@ -1247,11 +1290,11 @@ static bool YMNavigationSidebarApplySecondaryProjection(
     const std::uintptr_t ownerAddress =
         reinterpret_cast<std::uintptr_t>(owner);
     if (ownerAddress > std::numeric_limits<std::uintptr_t>::max() -
-                           kYMNavigationSidebarOverflowOffset) {
+                           YMNavigationSidebarOverflowOffset()) {
         return false;
     }
     callbacks.overflowHolder = reinterpret_cast<void *>(
-        ownerAddress + kYMNavigationSidebarOverflowOffset);
+        ownerAddress + YMNavigationSidebarOverflowOffset());
     if (!YMNavigationSidebarRangeHasProtection(
             reinterpret_cast<std::uintptr_t>(callbacks.overflowHolder),
             adapter::kHolderSlotsOffset,
@@ -1339,7 +1382,7 @@ struct YMNavigationSidebarLayoutScope {
                 const int type =
                     kYMNavigationSidebarSecondarySortableTypes[index];
                 auto *flag = static_cast<std::uint8_t *>(owner) +
-                             YMNavigationSidebarAvailabilityFlagOffset(type);
+                             YMNavigationSidebarAvailabilityOffset(type);
                 *flag = saved[index];
             }
         }
@@ -1369,7 +1412,7 @@ static void YMNavigationSidebarRearmSecondaryAvailability(void *owner) noexcept 
     const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(owner);
     for (const int type : kYMNavigationSidebarSecondarySortableTypes) {
         const std::uintptr_t offset =
-            YMNavigationSidebarAvailabilityFlagOffset(type);
+            YMNavigationSidebarAvailabilityOffset(type);
         if (offset == 0 ||
             base > std::numeric_limits<std::uintptr_t>::max() - offset) {
             continue;
@@ -1437,7 +1480,7 @@ static bool YMNavigationSidebarRunResponsiveLayout(void *owner) {
          ++index) {
         const int type = kYMNavigationSidebarSecondarySortableTypes[index];
         const std::uintptr_t offset =
-            YMNavigationSidebarAvailabilityFlagOffset(type);
+            YMNavigationSidebarAvailabilityOffset(type);
         const std::uintptr_t address =
             reinterpret_cast<std::uintptr_t>(owner) + offset;
         if (offset == 0 ||
@@ -1510,11 +1553,11 @@ static bool YMNavigationSidebarForceExpandedLayout(void *owner) noexcept {
     }
     const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(owner);
     if (base > std::numeric_limits<std::uintptr_t>::max() -
-                   kYMNavigationSidebarLayoutModeOffset) {
+                   YMNavigationSidebarLayoutModeOffset()) {
         return false;
     }
     const std::uintptr_t modeAddress =
-        base + kYMNavigationSidebarLayoutModeOffset;
+        base + YMNavigationSidebarLayoutModeOffset();
     if (!YMNavigationSidebarRangeHasProtection(
             modeAddress, sizeof(std::uint8_t),
             VM_PROT_READ | VM_PROT_WRITE)) {
@@ -1535,7 +1578,7 @@ static bool YMNavigationSidebarForceExpandedLayout(void *owner) noexcept {
     for (std::size_t index = 0; index < kSecondaryCount; ++index) {
         const int type = kYMNavigationSidebarSecondarySortableTypes[index];
         const std::uintptr_t offset =
-            YMNavigationSidebarAvailabilityFlagOffset(type);
+            YMNavigationSidebarAvailabilityOffset(type);
         if (offset == 0 ||
             base > std::numeric_limits<std::uintptr_t>::max() - offset) {
             return false;
@@ -1692,8 +1735,11 @@ static void *YMNavigationSidebarDidDestroyMainWindow(void *mainWindow) {
         .revokeAtDestructorStart(
             reinterpret_cast<std::uint64_t>(mainWindow));
 
-    void *destroyedOwner = nullptr;
-    if (mainWindow != nullptr &&
+    void *destroyedOwner = YMNavigationSidebarUses270135Layout()
+                               ? YMNavigationSidebarOwner.load(
+                                     std::memory_order_acquire)
+                               : nullptr;
+    if (!YMNavigationSidebarUses270135Layout() && mainWindow != nullptr &&
         YMNavigationSidebarRangeHasProtection(
             reinterpret_cast<std::uintptr_t>(mainWindow) + 0x2A0,
             sizeof(destroyedOwner),
@@ -1869,11 +1915,34 @@ static bool YMNavigationSidebarCallGuardsMatch(
     return true;
 }
 
+static void YMNavigationSidebarSelectPrimary415(void *owner, int type) {
+    if (owner == nullptr || YMNavigationSidebarNativeSelectPrimary415 == nullptr ||
+        YMNavigationSidebarGetSelectedPrimary == nullptr) {
+        return;
+    }
+    void *controller = nullptr;
+    if (!YMNavigationSidebarLoadPointerMember(
+            owner, YMNavigationSidebarPrimaryControllerOffset(), controller) ||
+        controller == nullptr ||
+        YMNavigationSidebarGetSelectedPrimary(controller) == type) {
+        return;
+    }
+    YMNavigationSidebarNativeSelectPrimary415(controller, type);
+}
+
 static void YMNavigationSidebarPublishCallTargets(
     const YMNavigationSidebarCallAddresses &calls) noexcept {
-    YMNavigationSidebarSelectPrimary =
+    auto nativeSelector =
         reinterpret_cast<YMNavigationSidebarPrimarySelector>(
             calls.primarySelector);
+    if (YMNavigationSidebarUses270135Layout() && nativeSelector != nullptr) {
+        YMNavigationSidebarNativeSelectPrimary415 = nativeSelector;
+        YMNavigationSidebarSelectPrimary =
+            &YMNavigationSidebarSelectPrimary415;
+    } else {
+        YMNavigationSidebarNativeSelectPrimary415 = nullptr;
+        YMNavigationSidebarSelectPrimary = nativeSelector;
+    }
     YMNavigationSidebarGetSelectedPrimary =
         reinterpret_cast<YMNavigationSidebarSelectedPrimaryGetter>(
             calls.selectedPrimaryGetter);
@@ -3027,7 +3096,7 @@ static BOOL YMNavigationSidebarPerformSave(
             YMNavigationSidebarGetSelectedPrimary == nullptr ||
             !YMNavigationSidebarLoadPointerMember(
                 owner,
-                kYMNavigationSidebarPrimaryControllerOffset,
+                YMNavigationSidebarPrimaryControllerOffset(),
                 callbacks.controller)) {
             if (error != nullptr) {
                 *error = YMNavigationSidebarError(
