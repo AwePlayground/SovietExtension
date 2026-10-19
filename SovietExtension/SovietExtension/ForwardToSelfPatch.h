@@ -53,6 +53,9 @@ NSString *YMQueryRoomName(NSString *roomID);
 
 BOOL YMRevokeRealSendForwardEnabled(void);
 
+/// 将基础撤回事件生成的本地提示正文发送给已核实的本人账号。
+BOOL YMForwardRevokeNoticeToSelf(NSString *selfUserText, NSString *noticeText);
+
 /// 撤回消息 → 本人文字通知；269079 对类型 3/43/47/49 同时提交原内容转发。
 /// 通知保留撤回人、内容和时间；文字原文包含在通知中，不再额外发送一条原文。
 /// selfUserText：269079 须匹配当前登录账号；268853 使用已适配撤回事件的本人字段。

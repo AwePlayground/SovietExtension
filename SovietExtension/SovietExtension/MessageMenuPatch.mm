@@ -249,6 +249,7 @@ static void YMMessageMenuBuilder(uintptr_t model, uintptr_t menu, bool fillNames
 
 void YMInstallMessageMenuPatch(void) {
     if (YMMessageMenuInstalled) return;
+    if (![[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"] isEqualToString:@"269079"]) return;
     YMMediaForwardAddresses addresses = {};
     // 先复用转发层的版本/Resources 镜像 UUID 校验，再核对菜单辅助函数和调用点指纹。
     // 微信升级后必须重新定位并验证，不能仅替换版本号或沿用 QAction/QString 的尺寸假设。

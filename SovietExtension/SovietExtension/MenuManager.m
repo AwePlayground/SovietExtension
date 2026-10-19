@@ -92,7 +92,10 @@ static void YMProtectAssistantMenuRole(void) {
     [revokeGroupSub addItem:NSMenuItem.separatorItem];
     NSMenuItem *forward = [self ym_toggleMenuItemWithTitle:@"同步到手机"
         key:kRevokeForwardToSelfRealSend action:@selector(onRevokeForwardToSelfRealSend:)];
-    forward.toolTip = @"两组开关独立；需要开启防撤回及对应的本人或他人防撤回才会同步。";
+    BOOL forwardingUnadapted = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"] isEqualToString:@"270135"];
+    forward.toolTip = forwardingUnadapted
+        ? @"4.1.15 当前同步基础撤回提醒；原消息内容和媒体仍待适配。"
+        : @"两组开关独立；需要开启防撤回及对应的本人或他人防撤回才会同步。";
     [revokeGroupSub addItem:forward];
     if (separateRevoke) {
         NSMenuItem *others = [self ym_toggleMenuItemWithTitle:@"他人" key:kRevokeForwardOthers action:@selector(onRevokeForwardOthers:)];

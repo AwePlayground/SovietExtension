@@ -182,6 +182,13 @@ void refreshNotice(uintptr_t ext, bool expired) noexcept {
 NSString *YMSelfRevokeAccount(void) {
     @try { try {
 
+    uintptr_t currentGetter = YMCurrentAccountGetterRuntimeAddress();
+    if (currentGetter) {
+        uintptr_t account = ((uintptr_t (*)())currentGetter)();
+        if (!account) return nil;
+        auto getter = (const std::string *(*)(uintptr_t))field<uintptr_t>(field<uintptr_t>(account, 0), 0x28);
+        return stringValue(getter(account));
+    }
     if (!installed.load()) return nil;
     uintptr_t account = native<uintptr_t (*)()>(0x428D0BC)();
     if (!account) return nil;

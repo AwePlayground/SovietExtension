@@ -1,6 +1,7 @@
 Test/
 /work/
 /frida/
-/tests/
+/tests/*
+!/tests/check_wechat_270135_profile.py
 __pycache__/
 *.pyc

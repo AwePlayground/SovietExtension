@@ -314,7 +314,8 @@ static BOOL YMForwardViaSendMsgCGI(uintptr_t fn, NSString *selfId, NSString *con
 
 struct YMForwardMessageData {
     // 仅提供对齐存储。内部含 string/shared_ptr/容器，必须通过原生构造、转换和析构管理。
-    uintptr_t words[0x340 / sizeof(uintptr_t)];
+    // 269079 为 0x340，270135 为 0x350；多出的尾部在旧版保持零初始化。
+    uintptr_t words[0x350 / sizeof(uintptr_t)];
 };
 
 struct YMForwardTargets {
@@ -404,18 +405,24 @@ static BOOL YMForwardNoticeToSelf(NSString *selfId, NSString *content) {
         uint8_t *data = (uint8_t *)message.get();
         const uint32_t textType = 1;
         memcpy(data + 8, &textType, sizeof(textType));
-        // 269079: 48e0f90 初始化完整对象；484f234 / 5167ac 确认正文为 +0xb0 的 string。
+        // 269079 正文为 +0xb0；270135 在其前新增 8 字节字段，正文为 +0xb8。
         // 27ac014 为发送生成新 Wrap/身份；27c1058..27c106c 将 Data+0xb0 赋给 Wrap+0x130。
         // 新通知不借用原消息的 ID、扩展对象或媒体字段，也不按 ID 重查原文。
         *(std::string *)(data + 0x28) = recipientUTF8;
         *(std::string *)(data + 0x40) = recipientUTF8;
         *(std::string *)(data + 0x58) = recipientUTF8;
-        ((std::string *)(data + 0xb0))->assign(contentUTF8, [content lengthOfBytesUsingEncoding:NSUTF8StringEncoding]);
+        const BOOL build270135 = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"] isEqualToString:@"270135"];
+        ((std::string *)(data + (build270135 ? 0xb8 : 0xb0)))->assign(
+            contentUTF8, [content lengthOfBytesUsingEncoding:NSUTF8StringEncoding]);
         return YMSubmitMessageToSession(message.get(), selfId, addresses);
     } catch (...) {
         YMForwardLog(@"native notice construction failed");
         return NO;
     }
+}
+
+BOOL YMForwardRevokeNoticeToSelf(NSString *selfUserText, NSString *noticeText) {
+    return YMForwardNoticeToSelf(selfUserText, noticeText);
 }
 
 static BOOL YMForwardNativeToSession(uintptr_t outWrap, uint32_t originType, NSString *sessionID, BOOL toSelf = NO) {
