@@ -144,6 +144,16 @@ def main():
     assert "YMRevoke270135InnerCallsiteStub" in source
     wrap = re.search(r"rawWrap\[(\d+)\]", source)
     assert wrap and int(wrap.group(1)) >= 632, "temporary MessageWrap storage is too small"
+    room_query = field(profile, "roomNameQueryVA")
+    assert room_query == 0x4338914, "270135 room query entry is not adapted"
+    assert image[room_query : room_query + 32] == bytes.fromhex(
+        "f657bda9f44f01a9fd7b02a9fd830091ffc309d1f30302aaf40301aae0e30091"
+    ), "room query ABI entry changed"
+    assert branch_target(image, room_query + 0x17C) == 0x3EDAC8, "room query session copy changed"
+    assert image[0x3EDAEC : 0x3EDAF4] == bytes.fromhex("6082049181820491"), "room name offset changed"
+    assert "YMMatchesWeChat270135RevokeDylib()" in source[source.index("YMRoomNameQueryRuntimeAddress"):], (
+        "270135 room query runtime guard missing"
+    )
     print("Build 270135 verified profile entries match the supplied arm64 image")
 
 

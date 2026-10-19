@@ -447,6 +447,9 @@ static const YMWeChatAdaptProfile YMAdaptProfiles[] = {
         .revokeOriginOutWrapStackOffset = 0x50,
         // GetUrlWebViewKind retains the 269079 entry and x0..x3 argument ABI.
         .openURLWebViewKindVA = 0x2279170,
+        // 与 269079 相同的同步会话查询 ABI；返回对象的 roomID / roomName
+        // 仍在 +0x000 / +0x120，270135 的拷贝入口为 0x3EDAC8。
+        .roomNameQueryVA = 0x4338914,
         .mediaForward = {0x4CBFC30, 0x396780, 0x187184C, 0x17B6C7C},
         .messageDataConstructVA = 0x4D59134,
         .accountGetterVA = 0x4669774,
@@ -2006,6 +2009,7 @@ static NSMutableDictionary<NSString *, NSString *> *YMGroupExitDisplayNameCache(
 
 /*
  Build 269079 / arm64：0x3830E14 按 x1=std::string* 查询，x2=已构造的会话对象。
+ Build 270135 / arm64：对应入口 0x4338914；0x3EDAC8 的拷贝逻辑仍读取 +0x120 群名。
  x0 在入口即被覆盖，当前 UUID 下不读取传入的 this；不能沿用到未核实的版本。
  0x3A148C0 在共享锁内查微信自身的会话表，命中经 0x313828 / 0x31A7CC 赋值。
  +0x000 为会话 ID，+0x120 为群名；读取群名前校验返回的会话 ID 与查询一致。
@@ -2060,8 +2064,12 @@ static_assert(offsetof(YMRoomSessionData, field1E0) == 0x1e0 && offsetof(YMRoomS
 
 static uintptr_t YMRoomNameQueryRuntimeAddress(void) {
     const YMWeChatAdaptProfile *profile = YMGetActiveProfile();
-    if (!profile || !profile->roomNameQueryVA || !YMWeChatDylibSlide ||
-        !YMMatchesWeChat269079Dylib()) return 0;
+    if (!profile || !profile->roomNameQueryVA || !YMWeChatDylibSlide) return 0;
+
+    BOOL validImage = strcmp(profile->buildVersion, "270135") == 0
+        ? YMMatchesWeChat270135RevokeDylib()
+        : YMMatchesWeChat269079Dylib();
+    if (!validImage) return 0;
 
     static const uint8_t expectedEntry[16] = {
         0xf6, 0x57, 0xbd, 0xa9, 0xf4, 0x4f, 0x01, 0xa9,
